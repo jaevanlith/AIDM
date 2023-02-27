@@ -26,9 +26,59 @@ array[int,1..3] of int: forbidden3;
 % Schedule
 array[1..groups,1..w] of var 0..numShifts: S;
 
-% Constraints
+% == Constraints == %
 array[1..numShifts] of int: shifts_array = [j | j in 1..numShifts];
+
+% meet demand; cumulative global constaint?
 constraint forall(d in 1..w)(global_cardinality(col(S,d),shifts_array) == col(demand,d));
 
+% shift blocks
+constraint forall (s in shifts_array) (
+              forall (i in 1..groups) (
+                  forall(j in 1..(w-1) where S[i, j + 1] == s /\ S[i, j] != s) (
+                        count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(minShift[s] - 1) 
+                          where ((j + k) div w) + i <= groups], s) >= minShift[s]
+                        )
+                    ) 
+                 ); % minima
+                 
+constraint forall (s in shifts_array) (
+              forall (i in 1..groups) (
+                  forall(j in 1..(w-1) where S[i, j + 1] == s /\ S[i, j] != s) (
+                        count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..maxShift[s]
+                          where ((j + k) div w) + i <= groups], s) < maxShift[s]
+                        )
+                    ) 
+                 ); % maxima
+
+% working blocks
+constraint forall (i in 1..groups) (
+              forall(j in 1..(w-1) where S[i, j + 1] != 0 /\ S[i, j] == 0) (
+                    count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(minOn - 1) 
+                      where ((j + k) div w) + i <= groups], S[i, j + 1]) >= minOn
+                    )
+                ); % minima
+                
+constraint forall (i in 1..groups) (
+              forall(j in 1..(w-1) where S[i, j + 1] != 0 /\ S[i, j] == 0) (
+                    count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..maxOn 
+                      where ((j + k) div w) + i <= groups], 0) < maxOn
+                    )
+                ); % maxima
+
+% off blocks
+constraint forall (i in 1..groups) (
+              forall(j in 1..(w-1) where S[i, j + 1] == 0 /\ S[i, j] != 0) (
+                    count([S[((j + k) div w) + i, ((j + k) mod w) + 1] | k in 0..(minOff - 1) 
+                      where ((j + k) div w) + i <= groups], 0) >= minOff
+                    )
+                ); % minima
+                
+constraint forall (i in 1..groups) (
+              forall(j in 1..(w-1) where S[i, j + 1] == 0 /\ S[i, j] != 0) (
+                    count([S[((j + k) div w) + i, ((j + k) mod w) + 1] | k in 0..maxOff 
+                      where ((j + k) div w) + i <= groups], 0) < maxOff
+                    )
+                ); % minima
 
 solve satisfy;
