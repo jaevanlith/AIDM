@@ -30,5 +30,7 @@ array[1..groups,1..w] of var 0..numShifts: S;
 array[1..numShifts] of int: shifts_array = [j | j in 1..numShifts];
 constraint forall(d in 1..w)(global_cardinality(col(S,d),shifts_array) == col(demand,d));
 
+% Forbidden sequences constraint
+constraint forall(g in 1..groups)(forall(d in 1..(w-1))(not (S[g,d+1] in forbidden[S[g,d]])) /\ not (S[g,1] in forbidden[S[g,w]]));
 
 solve satisfy;
