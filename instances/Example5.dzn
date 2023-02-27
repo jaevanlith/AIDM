@@ -1,0 +1,16 @@
+groups = 11;
+numShifts = 3;
+demand = [| 3, 3, 3, 3, 3, 3, 0,
+          | 3, 3, 3, 3, 3, 3, 0,
+          | 3, 3, 3, 3, 3, 0, 3 |];
+minShift = [2, 2, 2];
+maxShift = [6, 5, 4];
+minOff = 1;
+maxOff = 4;
+minOn = 4;
+maxOn = 7;
+forbidden = [{}, {1}, {1,2}];
+forbidden3 = [| 3, 0, 3,
+              | 2, 0, 1,
+              | 3, 0, 2,
+              | 3, 0, 1 |];
