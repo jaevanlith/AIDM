@@ -1,3 +1,5 @@
+include "globals.mzn";
+
 % Length of schedule
 int: w = 7;
 % Number of employees
@@ -16,12 +18,17 @@ int: maxOff;
 int: minOn;
 int: maxOn;
 % Forbidden sequences of shifts
-set of int: shifts = 1..3;
-array[1..3] of set of shifts: forbidden;
+set of int: shifts = 0..numShifts;
+array[1..numShifts] of set of shifts: forbidden;
 % Forbidden sequences of shifts of length 3
-% array[??,1..3] of int: forbidden3;
+array[int,1..3] of int: forbidden3;
 
 % Schedule
-array[1..(groups*w)] of int: T;
+array[1..groups,1..w] of var 0..numShifts: S;
 
 % Constraints
+array[1..numShifts] of int: shifts_array = [j | j in 1..numShifts];
+constraint forall(d in 1..w)(global_cardinality(col(S,d),shifts_array) == col(demand,d));
+
+
+solve satisfy;
