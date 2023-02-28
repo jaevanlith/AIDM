@@ -35,40 +35,58 @@ constraint forall(d in 1..w)(global_cardinality(col(S,d),shifts_array) == col(de
 predicate blockConstraint_min(int: s, int: min) = 
 forall (i in 1..groups) (
     forall(j in 1..(w-1) where S[i, j + 1] == s /\ S[i, j] != s) (
-          count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(min - 1) 
-            where ((j + k) div w) + i <= groups], s) >= min
+          count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(min - 1)
+            where ((j + k) div w) + i <= groups], s) == min
           )
       );
                                               
-predicate blockConstraint_max(int: s, int: max) = 
+predicate blockConstraint_max(int: s, int: min, int: max) = 
 forall (i in 1..groups) (
     forall(j in 1..(w-1) where S[i, j + 1] == s /\ S[i, j] != s) (
-          count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..max
-            where ((j + k) div w) + i <= groups], s) < max
+          count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in min..max
+            where ((j + k) div w) + i <= groups], s) <= max - min
           )
       );
 
 % shift blocks
 constraint forall (s in shifts_array) (blockConstraint_min(s, minShift[s])); % minima          
-constraint forall (s in shifts_array) (blockConstraint_max(s, maxShift[s])); % maxima
+constraint forall (s in shifts_array) (blockConstraint_max(s, minShift[s], maxShift[s])); % maxima
 
 % off blocks
 constraint blockConstraint_min(0, minOff); % minima     
-constraint blockConstraint_max(0, minOn); % minima
+constraint blockConstraint_max(0, minOn, minOn); % minima
 
 % working blocks
 constraint forall (i in 1..groups) (
               forall(j in 1..(w-1) where S[i, j + 1] != 0 /\ S[i, j] == 0) (
-                    count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(minOn - 1) 
-                      where ((j + k) div w) + i < groups], S[i, j + 1]) >= minOn
+                    among([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..(minOn - 1) 
+                      where ((j + k) div w) + i <= groups], 1..numShifts) = minOn
                     )
                 ); % minima
                 
 constraint forall (i in 1..groups) (
               forall(j in 1..(w-1) where S[i, j + 1] != 0 /\ S[i, j] == 0) (
-                    count([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in 0..maxOn 
-                      where ((j + k) div w) + i <= groups], 0) < maxOn
+                    among([S[((j + k) div w) + i,((j + k) mod w) + 1] | k in minOn..maxOn 
+                      where ((j + k) div w) + i <= groups], 1..numShifts) <= maxOn - minOn 
                     )
                 ); % maxima
+                
+                
+% consider first element
+constraint (count([S[(k div w) + 1,(k mod w) + 1] | k in 0..(minOff - 1) where (k div w) + 1 <= groups], 0) == minOff);
+constraint (count([S[(k div w) + 1,(k mod w) + 1] | k in minOff..maxOff where (k div w) + 1 <= groups], 0) <= maxOff - minOff);
+
+constraint forall (i in 2..groups where S[i, 1] == 0) (S[i - 1, 1] == S[i, 1] \/ count([S[(k div w) + i,(k mod w) + 1] | k in 0..(minOff - 1) where (k div w) + i <= groups], 0) == minOff);
+constraint forall (i in 2..groups where S[i, 1] == 0) (S[i - 1, 1] == S[i, 1] \/ count([S[(k div w) + i,(k mod w) + 1] | k in minOff..maxOff where (k div w) + i <= groups], 0) <= maxOff - minOff);
+
+constraint forall (i in 2..groups where S[i, 1] != 0) (forall (s in 1..numShifts where s == S[i, 1]) (S[i - 1, 1] == s \/ count([S[(k div w) + i,(k mod w) + 1] | k in 0..(minShift[s] - 1) where (k div w) + i <= groups], s) == minShift[s]));
+constraint forall (i in 2..groups where S[i, 1] != 0) (forall (s in 1..numShifts where s == S[i, 1]) (S[i - 1, 1] == s \/ count([S[(k div w) + i,(k mod w) + 1] | k in minShift[s]..maxShift[s] where (k div w) + i <= groups], s) <= maxShift[s] - minShift[s]));
+
+constraint forall (i in 2..groups where S[i, 1] != 0) (S[i - 1, 1] != 0 \/ among([S[(k div w) + i,(k mod w) + 1] | k in 0..(minOn - 1) where (k div w) + i <= groups], 1..numShifts) = minOn) ;
+constraint forall (i in 2..groups where S[i, 1] != 0) (S[i - 1, 1] != 0 \/ among([S[(k div w) + i,(k mod w) + 1] | k in minOn..maxOn where (k div w) + i <= groups], 1..numShifts) <= maxOn - minOn);
+
+                
+constraint S[1, 1] = 0;
+constraint S[groups, w] != 0; % block contraints assume that the last and first elements are not equal!!
 
 solve satisfy;
