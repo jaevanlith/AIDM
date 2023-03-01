@@ -85,6 +85,6 @@ var int : f = count([T[sat + i * w] | i in 0..(groups - 1)], 0) + count([T[sun +
 % free weekend distance
 array[int] of var int : f_full = [T[sat + i * w] + T[sun + i * w] | i in 0..(groups - 1)];
 array[int] of var opt int : dist1 = [(j - 1) * (j - 1) | i, j in 1..groups where (f_full[(i + j - 1) mod (groups) + 1] = 0 /\ f_full[i] = 0)];
-array[int] of var opt int : dist2 = [j * j | i, j in 1..groups where not (f_full[(i + j - 1) mod (groups) + 1] = 0 /\ f_full[i] = 0)];
+array[int] of var opt int : dist2 = [groups * groups | i in 1..groups where f_full[i] != 0];
 
 solve maximize f - sum(dist1) - sum(dist2);
