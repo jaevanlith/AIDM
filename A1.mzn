@@ -30,7 +30,19 @@ array[1..groups,1..w] of var 0..numShifts: S;
 array[1..numShifts] of int: shifts_array = [j | j in 1..numShifts];
 constraint forall(d in 1..w)(global_cardinality(col(S,d),shifts_array) == col(demand,d));
 
-% Forbidden sequences constraint
-constraint forall(g in 1..groups)(forall(d in 1..(w-1))(not (S[g,d+1] in forbidden[S[g,d]])) /\ not (S[g,1] in forbidden[S[g,w]]));
+% Forbidden sequences of length 2 constraint
+constraint forall(g in 1..groups)(
+              forall(d in 1..(w-1))(not (S[g,d+1] in forbidden[S[g,d]])) 
+              /\ 
+              not (S[g,1] in forbidden[S[g,w]]));
+
+% Forbidden sequences of length 3 constraint
+constraint forall(r in 1..(length(forbidden3) div 3))(
+              forall(g in 1..groups)(
+                  forall(d in 1..(w-2))(forbidden3[r,1] != S[g,d] \/ forbidden3[r,2] != S[g,d+1] \/ forbidden3[r,3] != S[g,d+2])
+                  /\
+                  (forbidden3[r,1] != S[g,(w-1)] \/ forbidden3[r,2] != S[g,w] \/ forbidden3[r,3] != S[g,1])
+                  /\
+                  (forbidden3[r,1] != S[g,(w)] \/ forbidden3[r,2] != S[g,1] \/ forbidden3[r,3] != S[g,2])));
 
 solve satisfy;
