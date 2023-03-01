@@ -67,15 +67,20 @@ constraint forall(i in 2..(groups * w) where T[i] != 0 /\ T[i - 1] == 0)
 % consider first element
 constraint (count([T[j + 1] | j in 0..(minOff - 1) where j + 1 <= groups * w], 0) == minOff);
 constraint (count([T[j + 1] | j in minOff..maxOff where j + 1 <= groups * w], 0) <= maxOff - minOff);
-            
+
+% symmetry breaking (cyclic nature)             
 constraint T[1] = 0;
 constraint T[groups * w] != 0; % block contraints assume that the last and first elements are not equal!!
 
+% forbidden sequences
 predicate equalArray3(array[1..3] of int: arr1, array[1..3] of var int: arr2) = forall (k in 1..3) (arr1[k] == arr2[k]);
 
 constraint forall(i in 1..(groups * w) where T[i] != 0) (not member(forbidden[T[i]], T[(i) mod (groups * w) + 1]));
 constraint forall(i in 1..(groups * w) where T[i] != 0) (forall(j in 1..(length(forbidden3) div 3)) ( not
                 equalArray3 (row(forbidden3, j), [T[(i + k - 1) mod (groups * w) + 1] | k in 0..2])));
+
+% symmetry breaking (offset)
+constraint o == min([(if sum(col(demand,d)) > sum(col(demand,(d mod w + 1))) then d else w+1 endif) | d in 1..w]) - 1;
 
 % maximize free weekends
 var int : sat = (5 + o) mod (w);
