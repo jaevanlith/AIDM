@@ -1,4 +1,5 @@
 use super::cp::CPEngineDataStructures;
+use std::collections::HashSet;
 use super::sat::SATEngineDataStructures;
 use super::{AssignmentsInteger, AssignmentsPropositional, SATCPMediator};
 use crate::arguments::ArgumentHandler;
@@ -396,8 +397,79 @@ impl ConstraintSatisfactionSolver {
         }
     }
 
+    // fn all_assigned(&mut self, w_x: &Vec<Literal>) -> bool {
+    //     // all assigned?
+    //     for i in w_x {
+    //         if self.sat_data_structures.assignments_propositional.is_variable_unassigned(i.get_propositional_variable()) {
+    //             return false
+    //         }
+    //     }
+    //     return true
+    // }
+
     fn analyse_conflict(&mut self, conflict_reference: ClauseReference) -> ConflictAnalysisResult {
-        todo!()
+        let decision_lev = self.sat_data_structures.assignments_propositional.get_decision_level();
+        let mut w_l = self.sat_data_structures.clause_allocator.get_mutable_clause(conflict_reference).get_literal_slice().clone().to_vec();
+        let mut stack = self.sat_data_structures.assignments_propositional.trail.clone();
+
+        loop {
+            let mut x_i = stack.pop().unwrap(); // stack
+            // println!("{:?}", x_i);
+
+            if w_l.contains(&!x_i) {
+
+            } else if w_l.contains(&x_i) {
+                x_i = !x_i
+            } else {
+                continue
+            }
+
+            let mut prev_clause = ClauseReference {
+                id: conflict_reference.id as u32 - 1,
+            };
+
+            let mut w_x = self.sat_data_structures.clause_allocator.get_mutable_clause(prev_clause).get_literal_slice().clone().to_vec();
+            // println!("w_x: {:?}", w_x);
+            while !w_x.contains(&x_i)  { // assume linear consideration of clauses
+                prev_clause = ClauseReference {
+                    id: prev_clause.id as u32 - 1,
+                };
+                w_x = self.sat_data_structures.clause_allocator.get_mutable_clause(prev_clause).get_literal_slice().clone().to_vec();
+                // println!("w_x: {:?}", w_x);
+            }
+
+            w_l.retain(|&x| x != x_i && x != !x_i);
+            w_x.retain(|&x| x != x_i && x != !x_i);
+            w_l.extend(&w_x);
+            let mut seen = HashSet::new();
+            w_l.retain(|&c| {
+                let is_first = !seen.contains(&c);
+                seen.insert(c);
+                is_first
+            });
+
+            let mut count : u32 = 0;
+            let mut lev_prop : u32 = 0;
+            for i in &w_l {
+                if self.sat_data_structures.assignments_propositional.is_variable_unassigned(i.get_propositional_variable()) ||
+                    decision_lev == self.sat_data_structures.assignments_propositional.get_variable_assignment_level(i.get_propositional_variable()) {
+                    count = count + 1;
+                } else {
+                    lev_prop = std::cmp::max(lev_prop, self.sat_data_structures.assignments_propositional.get_variable_assignment_level(i.get_propositional_variable()))
+                }
+            }
+            // println!("disjoint: {:?}", count);
+            // println!("w_l: {:?}", lev_prop);
+
+            stack.push(x_i);
+
+            if count  == 1  {
+                return ConflictAnalysisResult {
+                    learned_literals: w_l,
+                    backjump_level: lev_prop as u32,
+                }
+            }
+        }
     }
 
     fn propagate_enqueued(&mut self) {
@@ -420,7 +492,6 @@ impl ConstraintSatisfactionSolver {
             {
                 self.state
                     .declare_clausal_conflict(ClauseReference { id: reason_code });
-
                 break;
             }
 
@@ -892,6 +963,8 @@ mod tests {
         let result = solver.analyse_conflict(solver.state.get_conflict_clause_reference());
         let learnt_lits: HashSet<Literal> = result.learned_literals.into_iter().collect();
         let expected_lits: HashSet<Literal> = [!x[3], x[7], x[8]].into_iter().collect();
+
+        println!("{:?}", learnt_lits);
 
         assert_eq!(learnt_lits, expected_lits);
         assert_eq!(result.backjump_level, 3);

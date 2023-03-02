@@ -80,7 +80,7 @@ constraint forall(i in 1..(groups * w) where T[i] != 0) (forall(j in 1..(length(
                 equalArray3 (row(forbidden3, j), [T[(i + k - 1) mod (groups * w) + 1] | k in 0..2])));
 
 % symmetry breaking (offset)
-constraint o == (w - (max([d | d in 1..w where sum(col(demand, d mod (w) + 1)) < sum(col(demand, d))]) - 1)) mod w;
+% constraint o == (w - (max([d | d in 1..w where sum(col(demand, d mod (w) + 1)) < sum(col(demand, d))]) - 1)) mod w;
 % maximize free weekends
 var int : sat = (5 + o) mod (w) + 1;
 var int : sun = (6 + o) mod (w) + 1;
