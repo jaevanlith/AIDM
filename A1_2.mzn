@@ -30,7 +30,7 @@ var 0..(w-1): o; % offset
 array[1..numShifts] of int: shifts_array = [j | j in 1..numShifts];
 
 % meet demand; cumulative global constaint?
-constraint forall(d in 1..w)(global_cardinality([T[(d + o + w * i - 1) mod (groups * w) + 1] | i in 0..(groups - 1)], shifts_array) == col(demand, d));
+constraint forall(d in 1..w)(global_cardinality([T[(d + o + w * i - 1) mod (groups * w) + 1] | i in 0..(groups - 1)], shifts_array) == col(demand, d)) :: domain;
 constraint forall(d in 1..w)(count([T[(d + o + w * i - 1) mod (groups * w) + 1] | i in 0..(groups - 1)], 0) == groups - sum(col(demand,d))); % optimization: redundant constraint
 
 % predicate blockConstraint_min(int: s, int: min) = forall(i in 2..(groups * w) where T[i] == s /\ T[i - 1] != s) 
@@ -44,7 +44,7 @@ predicate blockConstraint_min(int: s, int: min) = forall(i in 2..(groups * w) wh
 predicate blockConstraint_max(int: s, int: min, int: max) = (forall(i in 2..(groups * w) where T[i] == s /\ T[i - 1] != s) 
                                                                 (count([T[j + i] | j in min..max 
                                                                       where j + i <= groups * w], s) <= max - min
-                                                            ));
+                                                            )); 
 
 % shift blocks
 constraint forall (s in shifts_array) (blockConstraint_min(s, minShift[s])); % minima          
@@ -80,7 +80,7 @@ constraint forall(i in 1..(groups * w) where T[i] != 0) (forall(j in 1..(length(
                 equalArray3 (row(forbidden3, j), [T[(i + k - 1) mod (groups * w) + 1] | k in 0..2])));
 
 % symmetry breaking (offset)
-% constraint o == (w - (max([d | d in 1..w where sum(col(demand, d mod (w) + 1)) < sum(col(demand, d))]) - 1)) mod w;
+constraint member(2..maxOff, o) \/ o == (w - (max([d | d in 1..w where sum(col(demand, d mod (w) + 1)) < sum(col(demand, d))]) - 1)) mod w;
 % maximize free weekends
 var int : sat = (5 + o) mod (w) + 1;
 var int : sun = (6 + o) mod (w) + 1;
@@ -91,4 +91,10 @@ array[int] of var int : f_full = [T[sat + i * w] + T[sun + i * w] | i in 0..(gro
 array[int] of var opt int : dist1 = [(j - 1) * (j - 1) | i, j in 1..groups where (f_full[(i + j - 1) mod (groups) + 1] = 0 /\ f_full[i] = 0)];
 array[int] of var opt int : dist2 = [groups * groups | i in 1..groups where f_full[i] != 0];
 
-solve maximize f - sum(dist1) - sum(dist2);
+% solve :: int_search([T[sun + i * w] | i in 0..(groups - 1)], first_fail, indomain_min) :: int_search([T[sat + i * w] | i in 0..(groups - 1)], first_fail, indomain_min) :: int_search([o], first_fail, indomain) maximize f - sum(dist1) - sum(dist2);
+
+solve :: int_search([T[sun + i * w] | i in 0..(groups - 1)], first_fail, indomain_min) :: int_search([T[sat + i * w] | i in 0..(groups - 1)], first_fail, indomain_min) :: int_search([o], first_fail, indomain) maximize sum([1 | i in 1..groups where f_full[i] == 0]);
+
+output ["[", concat([(if fix(T[(i + o - 1) mod (groups * w) + 1]) == 0 then "-," else concat([show(T[(i + o - 1) mod (groups * w) + 1]), ","]) endif) | i in 1..(groups * w - 1)] ++ [(if fix(T[(i + o - 1) mod (groups * w) + 1]) == 0 then "-" else concat([show(T[(i + o - 1) mod (groups * w) + 1])]) endif) | i in (groups * w)..(groups * w)]), "]\n",
+
+show(sum([1 | i in 1..groups where f_full[i] == 0]))]
