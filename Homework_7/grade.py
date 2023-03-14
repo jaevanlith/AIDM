@@ -71,7 +71,7 @@ def validate_wcnf_assignment(instance_path, assignment, objective_value):
 def check_opt(binary_path, instance_path):
     result = subprocess.run([binary_path, f'-file-location={instance_path}'], capture_output=True)
     if result.returncode != 0:
-        return f'Solver has terminated with error code {result.return_code}'
+        return f'Solver has terminated with error code {result.returncode}'
 
     lines = iter(result.stdout.decode('utf-8').split('\n'))
     line = next(lines)
