@@ -20,7 +20,8 @@ pub struct LinearInequalityPropagator {
     watchlist_lb: Vec<IntegerVariable>,
     c : i64,
     slack: i64,
-    initialised : bool
+    initialised : bool,
+    explanation: Vec<(Predicate,Predicate)>,
 }
 
 impl LinearInequalityPropagator {
@@ -53,15 +54,52 @@ impl LinearInequalityPropagator {
             c,
             slack: 0,
             initialised : false,
+            explanation : Vec :: new(),
         }
     }
 
     fn create_explanation(
-        &self, 
+        &self,
+        predicate: Option<Predicate>
         // Any required parameters
     ) -> PropositionalConjunction {
-        todo!()
+        let mut res = PropositionalConjunction :: new();
+
+        for i in 0..self.explanation.len() {
+            if predicate.is_none() || predicate.unwrap().get_integer_variable() != self.variables[i] {
+                // if self.weights[i] < 0 {
+                    res.and(self.explanation[i].0);
+                // } else {
+                    res.and(self.explanation[i].1);
+                // }
+            }
+        }
+
+        return res;
     }
+
+    fn store_bounds(&mut self, domains: &mut DomainManager) {
+        self.explanation = Vec :: new();
+
+        for i in 0..self.variables.len() {
+            self.explanation.push((domains.get_lower_bound_predicate(self.variables[i]),domains.get_upper_bound_predicate(self.variables[i])));
+        }
+    }
+}
+
+// helper function
+fn calculate_slack(c: i64, weights: Vec<i64>, variables:  Vec<IntegerVariable>, domains: &mut DomainManager) -> i64 {
+    let mut slack_ub = 0;
+    let mut slack_lb = 0;
+    for i in 0..variables.len() {
+        if weights[i] < 0 {
+            slack_lb += domains.get_lower_bound(variables[i]) as i64 * weights[i];
+        } else {
+            slack_ub += domains.get_upper_bound(variables[i]) as i64 * weights[i];
+        }
+    }
+
+    return slack_lb + slack_ub - c;
 }
 
 impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
@@ -74,6 +112,10 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 _ => PropagationStatusCP::NoConflictDetected,
             };
         }
+
+        // update slack
+        self.slack = calculate_slack(self.c, self.weights.clone(), self.variables.clone(), domains);
+        self.store_bounds(domains);
 
         // update lower bounds
         for i in 0..self.variables.len() {
@@ -90,30 +132,27 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
             let diff = self.slack + (lb - ub) * self.weights[i];
             let x_minsat = ((-1 * diff) + i64::abs(self.weights[i]) - 1) / self.weights[i];
             if diff < 0 {
-
                 let outcome;
-                let mut v = PropositionalConjunction :: new();
                 if self.weights[i] < 0 {
                     outcome = domains.tighten_upper_bound(self.variables[i], lb as i32 + x_minsat as i32 );
-
-                    // get predicate
-                    v.and(domains.get_lower_bound_predicates(&[self.variables[i]])[0]);
+                    // update upper bound in explanation
+                    self.explanation[i].1 = domains.get_upper_bound_predicate(self.variables[i]);
                 } else {
                     outcome = domains.tighten_lower_bound(self.variables[i],  lb as i32 + x_minsat as i32);
-                    // get predicate
-                    v.and(domains.get_upper_bound_predicates(&[self.variables[i]])[0]);
+                    // update lower bound in explanation
+                    self.explanation[i].0 = domains.get_lower_bound_predicate(self.variables[i]);
                 }
 
                 // report
                 if lb + x_minsat < 0 {
                     return PropagationStatusCP::ConflictDetected {
-                        failure_reason : v,
+                        failure_reason : self.create_explanation(None),
                     }
                 }
 
                 match outcome {
                     DomainOperationOutcome::Failure => return PropagationStatusCP::ConflictDetected {
-                        failure_reason : v,
+                        failure_reason : self.create_explanation(None),
                     },
                     _ => PropagationStatusCP::NoConflictDetected,
                 };
@@ -176,7 +215,7 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
     }
 
     fn get_reason_for_propagation(&mut self, predicate: Predicate) -> PropositionalConjunction {
-        todo!()
+        return self.create_explanation(Some(predicate));
     }
 
     fn priority(&self) -> u32 {
