@@ -21,6 +21,7 @@ pub struct LinearInequalityPropagator {
     c : i64,
     slack: i64,
     initialised : bool,
+    initial_bounds: Vec<i64>,
     explanation: Vec<(Predicate,Predicate)>,
 }
 
@@ -54,6 +55,7 @@ impl LinearInequalityPropagator {
             c,
             slack: 0,
             initialised : false,
+            initial_bounds : Vec :: new(),
             explanation : Vec :: new(),
         }
     }
@@ -65,13 +67,25 @@ impl LinearInequalityPropagator {
     ) -> PropositionalConjunction {
         let mut res = PropositionalConjunction :: new();
 
-        for i in 0..self.explanation.len() {
-            if predicate.is_none() || predicate.unwrap().get_integer_variable() != self.variables[i] {
-                // if self.weights[i] < 0 {
+        // for i in 0..self.explanation.len() {
+        //     if predicate.is_none() || predicate.unwrap().get_integer_variable() != self.variables[i] {
+        //         // if self.weights[i] < 0 {
+        //             res.and(self.explanation[i].0);
+        //         // } else {
+        //             res.and(self.explanation[i].1);
+        //         // }
+        //     }
+        // }
+
+        for i in 0..self.variables.len() {
+            if self.weights[i] < 0 {
+                if self.explanation[i].0.get_right_hand_side() > self.initial_bounds[i] as i32 {
                     res.and(self.explanation[i].0);
-                // } else {
+                }
+            } else {
+                if self.explanation[i].1.get_right_hand_side() < self.initial_bounds[i] as i32 {
                     res.and(self.explanation[i].1);
-                // }
+                }
             }
         }
 
@@ -245,9 +259,13 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
         let mut slack_lb = 0;
         for i in 0..self.variables.len() {
             if self.weights[i] < 0 {
-                slack_lb += domains.get_lower_bound(self.variables[i]) as i64 * self.weights[i];
+                let lb = domains.get_lower_bound(self.variables[i]) as i64;
+                slack_lb += lb * self.weights[i];
+                self.initial_bounds.push(lb);
             } else {
-                slack_ub += domains.get_upper_bound(self.variables[i]) as i64 * self.weights[i];
+                let ub = domains.get_upper_bound(self.variables[i]) as i64;
+                slack_ub += ub * self.weights[i];
+                self.initial_bounds.push(ub);
             }
         }
 
