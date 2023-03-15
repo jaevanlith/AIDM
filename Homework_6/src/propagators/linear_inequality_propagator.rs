@@ -22,7 +22,7 @@ pub struct LinearInequalityPropagator {
     slack: i64,
     initialised : bool,
     initial_bounds: Vec<i64>,
-    explanation: Vec<(Predicate,Predicate)>,
+    explanation: Vec<(Predicate,bool)>,
 }
 
 impl LinearInequalityPropagator {
@@ -79,12 +79,12 @@ impl LinearInequalityPropagator {
 
         for i in 0..self.variables.len() {
             if self.weights[i] < 0 {
-                if self.explanation[i].0.get_right_hand_side() > self.initial_bounds[i] as i32 {
+                if self.explanation[i].0.get_right_hand_side() > self.initial_bounds[i] as i32 && !self.explanation[i].1 {
                     res.and(self.explanation[i].0);
                 }
             } else {
-                if self.explanation[i].1.get_right_hand_side() < self.initial_bounds[i] as i32 {
-                    res.and(self.explanation[i].1);
+                if self.explanation[i].0.get_right_hand_side() < self.initial_bounds[i] as i32 && !self.explanation[i].1 {
+                    res.and(self.explanation[i].0);
                 }
             }
         }
@@ -92,11 +92,19 @@ impl LinearInequalityPropagator {
         return res;
     }
 
-    fn store_bounds(&mut self, domains: &mut DomainManager) {
-        self.explanation = Vec :: new();
-
+    fn update_bounds(&mut self, domains: &mut DomainManager) {
         for i in 0..self.variables.len() {
-            self.explanation.push((domains.get_lower_bound_predicate(self.variables[i]),domains.get_upper_bound_predicate(self.variables[i])));
+            if self.weights[i] < 0 {
+                // Check if changed
+                if self.explanation[i].0.get_right_hand_side() != domains.get_lower_bound(self.variables[i]) {
+                    self.explanation[i] = (domains.get_lower_bound_predicate(self.variables[i]),false);
+                }
+            } else {
+                // Check if changed
+                if self.explanation[i].0.get_right_hand_side() != domains.get_upper_bound(self.variables[i]) {
+                    self.explanation[i] = (domains.get_upper_bound_predicate(self.variables[i]),false);
+                }
+            }
         }
     }
 }
@@ -118,7 +126,6 @@ fn calculate_slack(c: i64, weights: Vec<i64>, variables:  Vec<IntegerVariable>, 
 
 impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
     fn propagate(&mut self, domains: &mut DomainManager) -> PropagationStatusCP {
-
         if !self.initialised {
             let init_status = self.initialise_at_root(domains);
             match init_status {
@@ -129,10 +136,13 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
 
         // update slack
         self.slack = calculate_slack(self.c, self.weights.clone(), self.variables.clone(), domains);
-        self.store_bounds(domains);
+        self.update_bounds(domains);
 
         // update lower bounds
         for i in 0..self.variables.len() {
+            // when already assigned, no propagation needed
+            if domains.is_integer_variable_assigned(self.variables[i]) { continue; }
+
             let mut lb = domains.get_lower_bound(self.variables[i]) as i64;
             let mut ub= domains.get_upper_bound(self.variables[i]) as i64;
 
@@ -150,11 +160,11 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 if self.weights[i] < 0 {
                     outcome = domains.tighten_upper_bound(self.variables[i], lb as i32 + x_minsat as i32 );
                     // update upper bound in explanation
-                    self.explanation[i].1 = domains.get_upper_bound_predicate(self.variables[i]);
+                    self.explanation[i].1 = true;
                 } else {
                     outcome = domains.tighten_lower_bound(self.variables[i],  lb as i32 + x_minsat as i32);
                     // update lower bound in explanation
-                    self.explanation[i].0 = domains.get_lower_bound_predicate(self.variables[i]);
+                    self.explanation[i].1 = true;
                 }
 
                 // report
@@ -262,10 +272,14 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 let lb = domains.get_lower_bound(self.variables[i]) as i64;
                 slack_lb += lb * self.weights[i];
                 self.initial_bounds.push(lb);
+
+                self.explanation.push((domains.get_lower_bound_predicate(self.variables[i]),false));
             } else {
                 let ub = domains.get_upper_bound(self.variables[i]) as i64;
                 slack_ub += ub * self.weights[i];
                 self.initial_bounds.push(ub);
+
+                self.explanation.push((domains.get_upper_bound_predicate(self.variables[i]),false));
             }
         }
 
