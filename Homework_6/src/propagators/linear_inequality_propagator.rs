@@ -62,20 +62,9 @@ impl LinearInequalityPropagator {
 
     fn create_explanation(
         &self,
-        predicate: Option<Predicate>
         // Any required parameters
     ) -> PropositionalConjunction {
         let mut res = PropositionalConjunction :: new();
-
-        // for i in 0..self.explanation.len() {
-        //     if predicate.is_none() || predicate.unwrap().get_integer_variable() != self.variables[i] {
-        //         // if self.weights[i] < 0 {
-        //             res.and(self.explanation[i].0);
-        //         // } else {
-        //             res.and(self.explanation[i].1);
-        //         // }
-        //     }
-        // }
 
         for i in 0..self.variables.len() {
             if self.weights[i] < 0 {
@@ -170,13 +159,13 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 // report
                 if lb + x_minsat < 0 {
                     return PropagationStatusCP::ConflictDetected {
-                        failure_reason : self.create_explanation(None),
+                        failure_reason : self.create_explanation(),
                     }
                 }
 
                 match outcome {
                     DomainOperationOutcome::Failure => return PropagationStatusCP::ConflictDetected {
-                        failure_reason : self.create_explanation(None),
+                        failure_reason : self.create_explanation(),
                     },
                     _ => PropagationStatusCP::NoConflictDetected,
                 };
@@ -239,7 +228,7 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
     }
 
     fn get_reason_for_propagation(&mut self, predicate: Predicate) -> PropositionalConjunction {
-        return self.create_explanation(Some(predicate));
+        return self.create_explanation();
     }
 
     fn priority(&self) -> u32 {
