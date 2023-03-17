@@ -289,10 +289,14 @@ fn test_conflict_explanations_2() {
 
     let predicates = reason.into_iter().collect::<Vec<_>>();
 
-    assert_eq!(2, predicates.len());
+    assert_eq!(3, predicates.len());
     assert!(predicates.contains(&Predicate::UpperBound {
         integer_variable: vars[0],
         upper_bound: 3,
+    }));
+    assert!(predicates.contains(&Predicate::LowerBound {
+        integer_variable: vars[1],
+        lower_bound: 5,
     }));
     assert!(predicates.contains(&Predicate::LowerBound {
         integer_variable: vars[2],

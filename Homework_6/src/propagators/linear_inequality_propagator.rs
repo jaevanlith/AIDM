@@ -22,7 +22,8 @@ pub struct LinearInequalityPropagator {
     slack: i64,
     initialised : bool,
     initial_bounds: Vec<i64>,
-    explanation: Vec<(Predicate,bool)>,
+    explanation: Vec<Predicate>,
+    opp_bounds: Vec<i64>
 }
 
 impl LinearInequalityPropagator {
@@ -57,24 +58,31 @@ impl LinearInequalityPropagator {
             initialised : false,
             initial_bounds : Vec :: new(),
             explanation : Vec :: new(),
+            opp_bounds : Vec :: new(),
         }
     }
 
     fn create_explanation(
         &self,
+        predicate: Option<Predicate>
         // Any required parameters
     ) -> PropositionalConjunction {
         let mut res = PropositionalConjunction :: new();
 
         for i in 0..self.variables.len() {
-            if self.weights[i] < 0 {
-                if self.explanation[i].0.get_right_hand_side() > self.initial_bounds[i] as i32 && !self.explanation[i].1 {
-                    res.and(self.explanation[i].0);
+            let mut sum = 0;
+            for j in 0..self.variables.len() {
+                if predicate.is_some() && predicate.unwrap().get_integer_variable() == self.variables[j] {
+                    sum += self.weights[j] * self.opp_bounds[j];
+                } else if i == j {
+                    sum += self.weights[j] * self.initial_bounds[j];
+                } else {
+                    sum += self.weights[j] * self.explanation[j].get_right_hand_side() as i64;
                 }
-            } else {
-                if self.explanation[i].0.get_right_hand_side() < self.initial_bounds[i] as i32 && !self.explanation[i].1 {
-                    res.and(self.explanation[i].0);
-                }
+            }
+
+            if sum >= self.c && (predicate.is_none() || predicate.unwrap() != self.explanation[i]) {
+                res.and(self.explanation[i]);
             }
         }
 
@@ -84,15 +92,9 @@ impl LinearInequalityPropagator {
     fn update_bounds(&mut self, domains: &mut DomainManager) {
         for i in 0..self.variables.len() {
             if self.weights[i] < 0 {
-                // Check if changed
-                if self.explanation[i].0.get_right_hand_side() != domains.get_lower_bound(self.variables[i]) {
-                    self.explanation[i] = (domains.get_lower_bound_predicate(self.variables[i]),false);
-                }
+                self.explanation[i] = domains.get_lower_bound_predicate(self.variables[i]);
             } else {
-                // Check if changed
-                if self.explanation[i].0.get_right_hand_side() != domains.get_upper_bound(self.variables[i]) {
-                    self.explanation[i] = (domains.get_upper_bound_predicate(self.variables[i]),false);
-                }
+                self.explanation[i] = domains.get_upper_bound_predicate(self.variables[i]);
             }
         }
     }
@@ -148,24 +150,20 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 let outcome;
                 if self.weights[i] < 0 {
                     outcome = domains.tighten_upper_bound(self.variables[i], lb as i32 + x_minsat as i32 );
-                    // update upper bound in explanation
-                    self.explanation[i].1 = true;
                 } else {
                     outcome = domains.tighten_lower_bound(self.variables[i],  lb as i32 + x_minsat as i32);
-                    // update lower bound in explanation
-                    self.explanation[i].1 = true;
                 }
 
                 // report
                 if lb + x_minsat < 0 {
                     return PropagationStatusCP::ConflictDetected {
-                        failure_reason : self.create_explanation(),
+                        failure_reason : self.create_explanation(None),
                     }
                 }
 
                 match outcome {
                     DomainOperationOutcome::Failure => return PropagationStatusCP::ConflictDetected {
-                        failure_reason : self.create_explanation(),
+                        failure_reason : self.create_explanation(None),
                     },
                     _ => PropagationStatusCP::NoConflictDetected,
                 };
@@ -228,7 +226,7 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
     }
 
     fn get_reason_for_propagation(&mut self, predicate: Predicate) -> PropositionalConjunction {
-        return self.create_explanation();
+        return self.create_explanation(Some(predicate));
     }
 
     fn priority(&self) -> u32 {
@@ -261,14 +259,14 @@ impl ConstraintProgrammingPropagator for LinearInequalityPropagator {
                 let lb = domains.get_lower_bound(self.variables[i]) as i64;
                 slack_lb += lb * self.weights[i];
                 self.initial_bounds.push(lb);
-
-                self.explanation.push((domains.get_lower_bound_predicate(self.variables[i]),false));
+                self.opp_bounds.push(domains.get_upper_bound(self.variables[i]) as i64);
+                self.explanation.push(domains.get_lower_bound_predicate(self.variables[i]));
             } else {
                 let ub = domains.get_upper_bound(self.variables[i]) as i64;
                 slack_ub += ub * self.weights[i];
                 self.initial_bounds.push(ub);
-
-                self.explanation.push((domains.get_upper_bound_predicate(self.variables[i]),false));
+                self.opp_bounds.push(domains.get_lower_bound(self.variables[i]) as i64);
+                self.explanation.push(domains.get_upper_bound_predicate(self.variables[i]));
             }
         }
 
